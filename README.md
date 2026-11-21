@@ -24,6 +24,7 @@ ERP de consola en **Java + MySQL** para el **Colegio Internacional Little Horizo
 16. [Contacto](#16-contacto)
 17. [Anexo A. Verificación de requisitos del enunciado](#anexo-a-verificación-de-requisitos-del-enunciado)
 18. [Anexo B. Recorrido de prueba por módulo](#anexo-b-recorrido-de-prueba-por-módulo)
+19. [Anexo C. Examen: buscador avanzado de estudiantes](#anexo-c-examen-buscador-avanzado-de-estudiantes)
 
 ---
 
@@ -804,3 +805,57 @@ Recorrido sugerido para revisar cada módulo con los datos de prueba. Las entrad
 | `6` Panel general | — | Resumen de todo el colegio |
 
 Para dejar los datos como al inicio, basta con volver a ejecutar `docs/database.sql`.
+
+---
+
+## Anexo C. Examen: buscador avanzado de estudiantes
+
+Prototipo de búsqueda de estudiantes con filtros, implementado en el paquete independiente **`test`**. Se ejecuta por su cuenta, sin pasar por el menú principal del ERP, y reutiliza la conexión a la base de datos del proyecto (`DatabaseConnection`).
+
+### Estructura
+
+```
+src/test/
+├── modelo/        GradeOption, StudentSearchResult (DTO estudiante + matrícula + grado),
+│                  StudentPerformance, SubjectSummary, PerformanceReport
+├── controlador/   StudentSearchController  → consulta BD y filtra por grado con Stream API
+│                  PerformanceReportController → promedios, ranking y desempeño con Stream API
+├── reporte/       PerformanceReportWriter  → escribe el reporte .txt
+└── vista/         BuscadorEstudiantesMain (main) y SearchMenuView (menú y resultados)
+```
+
+### Cómo ejecutarlo
+
+1. Ejecutar `docs/database.sql` (si aún no se ha hecho) y luego **`docs/test_data_2025.sql`**, con **Alt + X** en DBeaver.
+2. En IntelliJ elegir la configuración **`BuscadorEstudiantes`** (junto al botón ▶) y ejecutarla. Otra forma es abrir `src/test/vista/BuscadorEstudiantesMain.java` → clic derecho → **Run**.
+
+### Datos de prueba 2025
+
+Los datos principales del proyecto son de 2026, y sus matrículas de 2025 están en estado *Completada*. Por eso se agregó `docs/test_data_2025.sql`, que se puede ejecutar varias veces sin errores. Es una adaptación del script de datos de prueba del examen, con los mismos 3 estudiantes de Décimo y las mismas notas. Se hicieron dos ajustes: no usa IDs fijos, porque en esta base ya existen, y busca los grados por nombre, porque el `id_grado = 10` del script original corresponde a *Noveno*. Además incluye:
+
+| Grado (2025) | Estudiantes con matrícula Activa | Para probar |
+|---|---:|---|
+| Décimo | 3 (+1 con matrícula *Retirada*) | Resultado del ejemplo del enunciado y caso especial 1 (la retirada no aparece) |
+| Noveno | 4 | Reporte con promedios altos, medios y bajos; nombres sin segundo nombre o segundo apellido (caso especial 3) |
+| Once | 0 | Caso especial 2: "No se encontraron estudiantes…" |
+
+### Funcionamiento
+
+- **Opción 1 – Filtrar por grado académico:** consulta todos los estudiantes con matrícula *Activa* en 2025 (tablas `estudiantes`, `matriculas` y `grados`) y aplica el filtro por grado con Stream API, en `StudentSearchController.searchByGrade`:
+
+  ```java
+  return loadActiveEnrollments().stream()
+          .filter(student -> student.gradeId() == grade.id())
+          .collect(Collectors.toList());
+  ```
+
+  Valida números fuera de rango, texto y `0` para cancelar, con los mensajes del enunciado. El nombre completo se arma solo con las partes que existen (`StudentSearchResult.fullName`).
+- **Opciones 2 a 5:** muestran "Esta funcionalidad aún no ha sido implementada…" y regresan al menú.
+- **Opción 6 – Reporte de rendimiento académico por grado (.txt):** usa el mismo filtro por grado y calcula con Stream API (`groupingBy`, `averagingDouble`, `sorted`, `counting`):
+  1. ranking de estudiantes por promedio general, con su nivel de desempeño (Superior, Alto, Básico, Bajo);
+  2. promedio del curso, nota máxima y mínima, y mejor estudiante de cada materia;
+  3. promedio de cada estudiante en cada materia, marcando las que están por debajo de 3.0;
+  4. resumen: promedio del curso, estudiantes por nivel, **candidatos a beca (> 4.5)** y **estudiantes que requieren refuerzo (< 3.0)**.
+
+  El archivo se guarda en `reports/rendimiento_<grado>_2025_<fecha>.txt` y su ruta se muestra en pantalla. Si el grado no tiene estudiantes, no se crea el archivo.
+
